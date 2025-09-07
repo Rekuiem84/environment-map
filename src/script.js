@@ -2,12 +2,16 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import GUI from "lil-gui";
 import {
+	DRACOLoader,
 	GLTFLoader,
-	GroundedSkybox,
 	HDRLoader,
 } from "three/examples/jsm/Addons.js";
 
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath("./draco/");
 const gltfLoader = new GLTFLoader();
+gltfLoader.setDRACOLoader(dracoLoader);
+
 const cubeTextureLoader = new THREE.CubeTextureLoader(); // for cube textures
 const hdrLoader = new HDRLoader(); // for HDR equirectangular textures
 const textureLoader = new THREE.TextureLoader(); // for LDR equirectangular textures
@@ -24,133 +28,143 @@ const canvas = document.querySelector("canvas.webgl");
 // Scene
 const scene = new THREE.Scene();
 
+// on vient permettre à tous les mesh de la scène de caster et recevoir des ombres
+const updateAllMaterials = () => {
+	scene.traverse((child) => {
+		if (child.isMesh) {
+			child.castShadow = true;
+			child.receiveShadow = true;
+		}
+	});
+};
+
 /**
  * Environment map
  */
-// LDR Cube texture (6 images)
-// On vient projeter les 6 faces d'un cube autour de la scène
-// const environmentMap = cubeTextureLoader.load([
-// 	"./environmentMaps/2/px.png",
-// 	"./environmentMaps/2/nx.png",
-// 	"./environmentMaps/2/py.png",
-// 	"./environmentMaps/2/ny.png",
-// 	"./environmentMaps/2/pz.png",
-// 	"./environmentMaps/2/nz.png",
-// ]);
 
 // HDR (RGBE) equirectangular texture (very good lighting, but heavier to load)
-// const environmentMap = hdrLoader.load(
-// 	"./environmentMaps/blender-lights-2k.hdr",
-// 	(environmentMap) => {
-// 		// on indique comment projeter la texture
-// 		environmentMap.mapping = THREE.EquirectangularReflectionMapping;
-// 	}
-// );
-
-// LDR equirectangular texture (medium quality, fast to load)
-// const environmentMap = textureLoader.load("./environmentMaps/custom/japan.jpg"); //images format jpg, png, ... (LDR)
-// environmentMap.mapping = THREE.EquirectangularReflectionMapping;
-// environmentMap.colorSpace = THREE.SRGBColorSpace; // corrige les couleurs
-
-// Grounded HDR
-// Créé un sol avec la environment map (skybox)
-// hdrLoader.load("./environmentMaps/2/2k.hdr", (environmentMap) => {
-// 	environmentMap.mapping = THREE.EquirectangularReflectionMapping;
-// 	// environmentMap.colorSpace = THREE.SRGBColorSpace;
-// 	scene.environment = environmentMap;
-
-// 	// Skybox
-// 	const skybox = new GroundedSkybox(environmentMap, 15, 60);
-// 	skybox.position.y = 15;
-// 	scene.add(skybox);
-// });
-
-/**
- * Real time envmap
- */
-// Permet d'avoir un environnement dynamique en temps réel (reflets)
-const environmentMap = textureLoader.load("./environmentMaps/custom/cabin.jpg");
-environmentMap.mapping = THREE.EquirectangularReflectionMapping;
-environmentMap.colorSpace = THREE.SRGBColorSpace;
-
-// scene.environmentIntensity = 1;
-// scene.environment = environmentMap;
-scene.background = environmentMap;
-
-// Donut light
-const donut = new THREE.Mesh(
-	new THREE.TorusGeometry(8, 0.4),
-	new THREE.MeshBasicMaterial({ color: new THREE.Color(10, 10, 10) }) // couleur non accessible en rgb mais très lumineuse (HDR)
+const environmentMap = hdrLoader.load(
+	"./environmentMaps/0/2k.hdr",
+	(environmentMap) => {
+		// on indique comment projeter la texture
+		environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+	}
 );
-donut.position.set(0, 5, 0);
-donut.layers.enable(1); // on autorise à être filmé par la caméra couche 1 (cube camera)
-scene.add(donut);
 
-// Cube render target
-const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
-	type: THREE.HalfFloatType,
-});
-// Permet d'utiliser la cube render target comme une environment map (pour les reflets)
-// On pourra voir sur les reflets ce que filme la cube camera assignée
-scene.environment = cubeRenderTarget.texture;
-
-const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
-cubeCamera.layers.set(1); // filme uniquement la layer 1 (donut)
+scene.background = environmentMap;
+scene.environment = environmentMap;
+scene.environmentIntensity = 1;
 
 gui.add(scene, "environmentIntensity").min(0).max(10).step(0.001);
-gui.add(scene, "backgroundBlurriness").min(0).max(1).step(0.001);
-gui.add(scene, "backgroundIntensity").min(0).max(10).step(0.001);
-gui
-	.add(scene.backgroundRotation, "y")
-	.min(0)
-	.max(Math.PI * 2)
-	.step(0.001)
-	.name("backgroundRotationY");
-gui
-	.add(scene.environmentRotation, "y")
-	.min(0)
-	.max(Math.PI * 2)
-	.step(0.001)
-	.name("environmentRotationY");
+
+// Light
+const directionalLight = new THREE.DirectionalLight("#ffffff", 3);
+directionalLight.position.set(-4, 6.5, 6.5);
+
+gui.add(directionalLight, "intensity").min(0).max(10).step(0.001);
+gui.add(directionalLight.position, "x").min(-10).max(10).step(0.001);
+gui.add(directionalLight.position, "y").min(-10).max(10).step(0.001);
+gui.add(directionalLight.position, "z").min(-10).max(10).step(0.001);
+
+gui.add(directionalLight.shadow, "normalBias").min(0).max(0.1).step(0.001);
+gui.add(directionalLight.shadow, "bias").min(-0.1).max(0.1).step(0.001);
+
+scene.add(directionalLight);
+
+// Shadows
+directionalLight.castShadow = true;
+directionalLight.shadow.camera.far = 25;
+directionalLight.shadow.mapSize.set(1024, 1024); // résolution des ombres
+directionalLight.shadow.normalBias = 0.06; // réduire les artefacts sur les ombres sur les surfaces inclinées
+directionalLight.shadow.bias = 0.002; // réduire les artefacts sur les surfaces planes
+gui.add(directionalLight, "castShadow");
+
+// Target
+directionalLight.target.position.set(0, 4, 0); // par défaut la cible est à (0,0,0)
+directionalLight.target.updateMatrixWorld(); // on doit appeler cette méthode pour que la cible soit bien positionnée
+
+// const directionalLightCameraHelper = new THREE.CameraHelper(
+// 	directionalLight.shadow.camera
+// );
+// directionalLightCameraHelper.update();
+// scene.add(directionalLightCameraHelper);
 
 /**
- * Torus Knot
+ * Models
  */
-const torusKnot = new THREE.Mesh(
-	new THREE.TorusKnotGeometry(1, 0.4, 100, 16),
-	new THREE.MeshStandardMaterial({
-		roughness: 0.1,
-		metalness: 0.9,
-		color: 0xaaaaaa,
-	})
-);
-torusKnot.position.x = 4;
-torusKnot.position.y = 4;
-scene.add(torusKnot);
 
-/**
- * Sphere
- */
-const sphere = new THREE.Mesh(
-	new THREE.SphereGeometry(1.5, 32, 32),
-	new THREE.MeshStandardMaterial({
-		roughness: 0,
-		metalness: 1,
-		color: 0xaaaaaa,
-	})
-);
-sphere.position.x = -4;
-sphere.position.y = 4;
-scene.add(sphere);
-
-/**
- * Model
- */
 gltfLoader.load("./models/FlightHelmet/glTF/FlightHelmet.gltf", (gltf) => {
 	const model = gltf.scene;
 	model.scale.setScalar(10);
 	scene.add(model);
+	updateAllMaterials();
 });
+
+// gltfLoader.load("./models/big-burger.glb", (gltf) => {
+// 	const model = gltf.scene;
+// 	model.scale.setScalar(1.5);
+// 	model.position.y = 2;
+// 	scene.add(model);
+
+// 	updateAllMaterials();
+// });
+
+/**
+ * Floor
+ */
+const floorColorTexture = textureLoader.load(
+	"/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_diff_1k.jpg"
+);
+const floorNormalTexture = textureLoader.load(
+	"/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_nor_gl_1k.png"
+);
+const floorAORoughnessMetalnessTexture = textureLoader.load(
+	"/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_arm_1k.jpg"
+);
+
+floorColorTexture.colorSpace = THREE.SRGBColorSpace;
+
+const floor = new THREE.Mesh(
+	new THREE.PlaneGeometry(12, 12),
+	new THREE.MeshStandardMaterial({
+		map: floorColorTexture,
+		normalMap: floorNormalTexture,
+		aoMap: floorAORoughnessMetalnessTexture,
+		roughnessMap: floorAORoughnessMetalnessTexture,
+		metalnessMap: floorAORoughnessMetalnessTexture,
+	})
+);
+floor.rotation.x = -Math.PI * 0.5;
+scene.add(floor);
+
+/**
+ * Wall
+ */
+const wallColorTexture = textureLoader.load(
+	"/textures/castle_brick_broken_06/castle_brick_broken_06_diff_1k.jpg"
+);
+const wallNormalTexture = textureLoader.load(
+	"/textures/castle_brick_broken_06/castle_brick_broken_06_nor_gl_1k.png"
+);
+const wallAORoughnessMetalnessTexture = textureLoader.load(
+	"/textures/castle_brick_broken_06/castle_brick_broken_06_arm_1k.jpg"
+);
+
+wallColorTexture.colorSpace = THREE.SRGBColorSpace;
+
+const wall = new THREE.Mesh(
+	new THREE.PlaneGeometry(12, 12),
+	new THREE.MeshStandardMaterial({
+		map: wallColorTexture,
+		normalMap: wallNormalTexture,
+		aoMap: wallAORoughnessMetalnessTexture,
+		roughnessMap: wallAORoughnessMetalnessTexture,
+		metalnessMap: wallAORoughnessMetalnessTexture,
+	})
+);
+wall.position.y = 6;
+wall.position.z = -6;
+scene.add(wall);
 
 /**
  * Sizes
@@ -197,9 +211,25 @@ controls.enableDamping = true;
  */
 const renderer = new THREE.WebGLRenderer({
 	canvas: canvas,
+	antialias: true,
 });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Tone mapping (to handle HDR)
+renderer.toneMapping = THREE.ReinhardToneMapping;
+renderer.toneMappingExposure = 2;
+
+gui.add(renderer, "toneMapping", {
+	No: THREE.NoToneMapping,
+	Linear: THREE.LinearToneMapping,
+	Reinhard: THREE.ReinhardToneMapping,
+	Cineon: THREE.CineonToneMapping,
+	ACESFilmic: THREE.ACESFilmicToneMapping,
+});
+gui.add(renderer, "toneMappingExposure").min(0).max(10).step(0.001);
 
 /**
  * Animate
@@ -208,12 +238,6 @@ const clock = new THREE.Clock();
 const tick = () => {
 	// Time
 	const elapsedTime = clock.getElapsedTime();
-
-	// Real time envmap
-	if (donut) {
-		donut.rotation.x = elapsedTime * 1.2;
-		cubeCamera.update(renderer, scene);
-	}
 
 	// Update controls
 	controls.update();
