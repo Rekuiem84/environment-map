@@ -1,20 +1,25 @@
-# 🖌️ Three.js – Modèle custom Blender 🎨
+# 🖼️ Three.js – Environment map 🌐
 
-Intégration d'un modèle 3D fait avec Blender, avec [Three.js](https://threejs.org/), inspirée du parcours Three.js Journey par Bruno Simon.
+Illustration de plusieurs fonctionnalités relatives aux environment maps avec [Three.js](https://threejs.org/), inspirée du parcours Three.js Journey par Bruno Simon.
 
 <img src="./docs/scene.png" alt="Aperçu de la scène" width="480"/>
 
 ## 🚀 Démo
 
-[Voir la démo](https://rekuiem84.github.io/blender-model/)
+[Voir la démo](https://rekuiem84.github.io/environment-map/)
+
+## Fonctionnalités
+
+- Chargement et application d'une environment map
+- Réflexions réalistes sur les matériaux, notamment de la lumière
 
 ## 🛠️ Installation & Lancement
 
 1. **Cloner le dépôt :**
 
    ```bash
-   git clone https://github.com/Rekuiem84/blender-model
-   cd blender-model
+   git clone https://github.com/Rekuiem84/environment-map
+   cd environment-map
    ```
 
 2. **Installer les dépendances :**
@@ -41,6 +46,7 @@ Intégration d'un modèle 3D fait avec Blender, avec [Three.js](https://threejs.
 
 ```
 ├── src/           # Fichiers sources
+├── static/        # Fichiers statiques (models et environment maps)
 ├── dist/          # Fichiers générés pour la production
 ├── package.json   # Dépendances et scripts
 └── vite.config.js # Configuration Vite

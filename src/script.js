@@ -90,10 +90,12 @@ scene.add(donut);
 const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
 	type: THREE.HalfFloatType,
 });
+// Permet d'utiliser la cube render target comme une environment map (pour les reflets)
+// On pourra voir sur les reflets ce que filme la cube camera assignée
 scene.environment = cubeRenderTarget.texture;
 
 const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
-cubeCamera.layers.set(1); // display only the layer 1
+cubeCamera.layers.set(1); // filme uniquement la layer 1 (donut)
 
 gui.add(scene, "environmentIntensity").min(0).max(10).step(0.001);
 gui.add(scene, "backgroundBlurriness").min(0).max(1).step(0.001);
